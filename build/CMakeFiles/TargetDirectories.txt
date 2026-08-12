@@ -1,0 +1,4 @@
+/run/media/hubertg/SONIC/Minkraft/build/CMakeFiles/minkraft.dir
+/run/media/hubertg/SONIC/Minkraft/build/CMakeFiles/shaders.dir
+/run/media/hubertg/SONIC/Minkraft/build/CMakeFiles/edit_cache.dir
+/run/media/hubertg/SONIC/Minkraft/build/CMakeFiles/rebuild_cache.dir
