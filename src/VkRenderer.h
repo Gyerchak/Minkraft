@@ -70,6 +70,7 @@ private:
     VkDeviceMemory m_atlasMem = VK_NULL_HANDLE;
     VkImageView m_atlasView = VK_NULL_HANDLE;
     VkSampler m_atlasSampler = VK_NULL_HANDLE;
+    VkSampler m_crackSampler = VK_NULL_HANDLE; // NEAREST: keeps crack texels crisp
 
     VkDescriptorSetLayout m_worldSetLayout = VK_NULL_HANDLE;
     VkDescriptorSetLayout m_boxSetLayout = VK_NULL_HANDLE;
@@ -105,6 +106,7 @@ private:
         VkDeviceMemory uboMem = VK_NULL_HANDLE;
         VkDescriptorSet worldSet = VK_NULL_HANDLE;
         VkDescriptorSet boxSet = VK_NULL_HANDLE;
+        VkDescriptorSet crackSet = VK_NULL_HANDLE;
         void* uboMap = nullptr;
         std::vector<std::pair<VkBuffer, VkDeviceMemory>> pendingDestroy;
     };

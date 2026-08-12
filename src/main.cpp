@@ -337,12 +337,13 @@ int main() {
             mineProgress = 0.0f;
         }
 
-        // Placement: 1/64 s cooldown between placed blocks while holding RMB.
+        // Placement: min placeDelay seconds between placed blocks while holding RMB.
         static float placeTimer = 0.0f;
         bool rightDown = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS;
         if (rightDown) {
             placeTimer += dt;
-            if (hit && hface >= 0 && hface < 6 && placeTimer >= 1.0f / 64.0f) {
+            float placeMax = g_settings.placeDelay < 0.01f ? 0.01f : g_settings.placeDelay;
+            if (hit && hface >= 0 && hface < 6 && placeTimer >= placeMax) {
                 static const int FD[6][3] = {
                     {1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}};
                 int px = hx + FD[hface][0];
