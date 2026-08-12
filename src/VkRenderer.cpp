@@ -760,7 +760,9 @@ bool VkRenderer::createAtlas(const TextureAtlas& atlas) {
     if (vkCreateSampler(m_ctx.device, &si, nullptr, &m_atlasSampler) != VK_SUCCESS) return false;
 
     // Crack overlay sampler: NEAREST filtering so the crack texels stay crisp
-    // and match the pixel-art look of the block textures.
+    // and match the pixel-art look of the block textures. Locked to mip 0:
+    // lower mips average the alpha channel, which would fade the thin crack
+    // lines out and make them flicker as the camera moves.
     VkSamplerCreateInfo cs{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
     cs.magFilter = VK_FILTER_NEAREST;
     cs.minFilter = VK_FILTER_NEAREST;
@@ -771,7 +773,7 @@ bool VkRenderer::createAtlas(const TextureAtlas& atlas) {
     cs.mipLodBias = 0.0f;
     cs.anisotropyEnable = VK_FALSE;
     cs.minLod = 0.0f;
-    cs.maxLod = (float)(levels.size() - 1);
+    cs.maxLod = 0.0f; // only level 0
     if (vkCreateSampler(m_ctx.device, &cs, nullptr, &m_crackSampler) != VK_SUCCESS) return false;
     return true;
 }
