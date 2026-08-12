@@ -616,13 +616,21 @@ bool VkRenderer::createPipelines() {
         cbaC.alphaBlendOp = VK_BLEND_OP_ADD;
         VkPipelineColorBlendStateCreateInfo cbC = cb;
         cbC.pAttachments = &cbaC;
+        // Depth bias: guarantees the crack overlay wins the depth test at any
+        // distance or viewing angle (a fixed geometric offset by itself z-fights
+        // against the block face when viewed closely/shadely). The slope factor
+        // grows the bias on near-edge-on faces that would otherwise flicker.
+        VkPipelineRasterizationStateCreateInfo rsC = rs;
+        rsC.depthBiasEnable = VK_TRUE;
+        rsC.depthBiasConstantFactor = 4.0f;
+        rsC.depthBiasSlopeFactor = 1.0f;
         VkGraphicsPipelineCreateInfo gi{VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO};
         gi.stageCount = 2;
         gi.pStages = crackStages;
         gi.pVertexInputState = &worldVi;
         gi.pInputAssemblyState = &ia;
         gi.pViewportState = &vs;
-        gi.pRasterizationState = &rs;
+        gi.pRasterizationState = &rsC;
         gi.pMultisampleState = &ms;
         gi.pDepthStencilState = &dsC;
         gi.pColorBlendState = &cbC;
