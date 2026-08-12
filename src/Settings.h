@@ -11,7 +11,7 @@ struct Settings {
     int windowBorderless = 0; // 0=windowed, 1=borderless fullscreen
 
     // --- Graphics ---
-    int renderDistance = 64;  // chunks in each direction from the player
+    int renderDistance = 50;  // chunks in each direction from the player
     float fovDegrees = 70.0f;
     int maxFps = 0;           // 0 = unlimited (vsync off)
 
