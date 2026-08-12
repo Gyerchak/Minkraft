@@ -14,6 +14,7 @@
 #include "Player.h"
 #include "VkRenderer.h"
 #include "Settings.h"
+#include "WorldGenConfig.h"
 
 #include <sys/stat.h>
 #include <unistd.h>
@@ -158,6 +159,8 @@ static bool raycastBlock(World& world, const Vec3& origin, const Vec3& dir,
 int main() {
     // Load settings from settings.conf (working dir or next to the executable).
     g_settings.load(exeDir().c_str());
+    WorldGenConfig wcfg;
+    wcfg.load(exeDir().c_str());
 
     if (!glfwInit()) {
         fprintf(stderr, "Failed to init GLFW\n");
@@ -200,7 +203,7 @@ int main() {
     uint32_t seed = (uint32_t)time(nullptr);
     const char* seedStr = getenv("MINKRAFT_SEED");
     if (seedStr) seed = (uint32_t)atoi(seedStr);
-    World world(seed);
+    World world(seed, wcfg);
 
     TextureAtlas atlas;
     atlas.generate(findTexturesDir());
@@ -223,7 +226,7 @@ int main() {
     while (!world.meshQueueEmpty()) world.processMeshQueue(); // mesh the whole spawn area now
     if (getenv("MINKRAFT_PERF")) fprintf(stderr, "[perf]  mesh=%.1fms\n", (glfwGetTime() - tScan) * 1000.0);
     auto topSolid = [&](int x, int z) {
-        for (int y = 62; y >= 0; y--)
+        for (int y = wcfg.seaLevel + 38; y >= 0; y--)
             if (world.isSolid(x, y, z)) return y;
         return 0;
     };
@@ -232,13 +235,13 @@ int main() {
         for (int dz = -r; dz <= r && !spawned; dz++) {
             for (int dx = -r; dx <= r && !spawned; dx++) {
                 int h = topSolid(dx, dz);
-                if (h < 26 || h >= 46) continue;
+                if (h < wcfg.beachLevel + 1 || h >= wcfg.snowHeight) continue;
                 if (world.getBlock(dx, h, dz) != GRASS) continue;
                 // Require a patch of dry land around this spot.
                 int dry = 0;
                 for (int dz2 = -3; dz2 <= 3; dz2++)
                     for (int dx2 = -3; dx2 <= 3; dx2++)
-                        if (topSolid(dx + dx2, dz + dz2) >= 24) dry++;
+                        if (topSolid(dx + dx2, dz + dz2) >= wcfg.beachLevel) dry++;
                 if (dry >= 30) {
                     g_player.pos = Vec3(dx + 0.5f, h + 1.01f, dz + 0.5f);
                     spawned = true;

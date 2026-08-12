@@ -20,6 +20,7 @@ add_executable(minkraft
     src/VkRenderer.cpp
     src/PngLoader.cpp
     src/Settings.cpp
+    src/WorldGenConfig.cpp
 )
 
 target_include_directories(minkraft PRIVATE
@@ -66,6 +67,10 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/textures)
 endif()
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/settings.conf)
     file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/settings.conf
+         DESTINATION ${CMAKE_BINARY_DIR})
+endif()
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/worldgen.conf)
+    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/worldgen.conf
          DESTINATION ${CMAKE_BINARY_DIR})
 endif()
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/shaders

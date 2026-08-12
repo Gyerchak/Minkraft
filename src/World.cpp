@@ -2,9 +2,7 @@
 #include "Noise.h"
 #include <algorithm>
 
-static const int SEA_LEVEL = 24;
-
-World::World(uint32_t seed) : m_seed(seed) {}
+World::World(uint32_t seed, const WorldGenConfig& cfg) : m_seed(seed), m_cfg(cfg) {}
 
 World::~World() = default;
 
@@ -47,14 +45,18 @@ void World::setBlock(int x, int y, int z, unsigned char v) {
 }
 
 float World::terrainHeight(int x, int z) const {
-    float n = fbm2D(x * 0.008f, z * 0.008f, m_seed, 4);
-    float h = 18.0f + n * 26.0f; // ~[18,44], average ~31 (above sea level)
-
-    // Rolling mountains.
-    float m = fbm2D(x * 0.004f + 512.0f, z * 0.004f - 512.0f, m_seed ^ 0x9E3779B9u, 4);
-    if (m > 0.55f) {
-        h += (m - 0.55f) * 80.0f;
-    }
+    const WorldGenConfig& c = m_cfg;
+    // Base rolling ground.
+    float n = fbm2D(x * c.terrainScale, z * c.terrainScale, m_seed, c.terrainOctaves);
+    float h = c.baseHeight + n * c.heightAmp;
+    // Bumpy detail hills layered over it.
+    float hi = fbm2D(x * c.hillScale + 1024.0f, z * c.hillScale - 1024.0f,
+                     m_seed ^ 0x1BADB002u, c.hillOctaves);
+    h += (hi - 0.5f) * 2.0f * c.hillAmp;
+    // Mountain ranges on top.
+    float m = fbm2D(x * c.mountainScale + 512.0f, z * c.mountainScale - 512.0f,
+                    m_seed ^ 0x9E3779B9u, c.mountainOctaves);
+    if (m > c.mountainThreshold) h += (m - c.mountainThreshold) * c.mountainAmp;
     return h;
 }
 
@@ -85,15 +87,15 @@ void World::generateChunk(Chunk& c) {
                 if (blk == STONE && y > 4 && y < h - 1) {
                     float cave = valueNoise3D(wx * 0.05f, y * 0.08f, wz * 0.05f,
                                               m_seed ^ 0xA5A5A5A5u);
-                    if (cave > 0.74f) {
+                    if (cave > m_cfg.caveThreshold) {
                         blk = AIR;
                     }
                 }
 
                 if (y == h) {
-                    if (h <= SEA_LEVEL + 1) {
+                    if (h <= m_cfg.beachLevel) {
                         blk = SAND;
-                    } else if (h >= 46) {
+                    } else if (h >= m_cfg.snowHeight) {
                         blk = SNOW;
                     } else {
                         blk = GRASS;
@@ -103,7 +105,7 @@ void World::generateChunk(Chunk& c) {
             }
 
             // Water fill.
-            for (int y = h + 1; y <= SEA_LEVEL && y < Chunk::CY; y++) {
+            for (int y = h + 1; y <= m_cfg.seaLevel && y < Chunk::CY; y++) {
                 c.set(x, y, z, WATER);
             }
         }
@@ -115,11 +117,11 @@ void World::generateChunk(Chunk& c) {
             int wx = ox + x;
             int wz = oz + z;
             int h = heights[x][z];
-            if (h < 28 || h >= 46) continue; // only on grass land, not snowy peaks
-            if (h <= SEA_LEVEL + 1) continue;
+            if (h < m_cfg.treeMinHeight || h >= m_cfg.treeMaxHeight) continue;
+            if (h <= m_cfg.beachLevel) continue;
             unsigned char top = c.get(x, h, z);
             if (top != GRASS) continue;
-            if (hash3(wx, h, wz, m_seed) % 100 >= 4) continue;
+            if (hash3(wx, h, wz, m_seed) % 100 >= m_cfg.treeChancePct) continue;
 
             // Trunk.
             int trunkH = 4 + (int)(hash3(wx, wz, h, m_seed ^ 0x1234u) % 3);

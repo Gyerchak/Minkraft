@@ -8,10 +8,11 @@
 #include <cmath>
 #include "Chunk.h"
 #include "VkUtil.h"
+#include "WorldGenConfig.h"
 
 class World {
 public:
-    World(uint32_t seed);
+    World(uint32_t seed, const WorldGenConfig& cfg);
     ~World();
 
     // Keep chunks within renderDist of the player loaded & meshed.
@@ -49,6 +50,7 @@ public:
 
 private:
     uint32_t m_seed;
+    WorldGenConfig m_cfg;
     const RenderContext* m_ctx = nullptr;
     int m_meshBudget = 32;
     using Key = int64_t;
