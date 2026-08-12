@@ -24,7 +24,6 @@ struct FrameState {
     bool showCrack = false;
     Vec3 crackPos;
     int crackStage = 0;
-    int crackFaces = 0; // bitmask of exposed faces to draw on the crack cube
 };
 
 class VkRenderer {

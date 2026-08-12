@@ -337,12 +337,15 @@ int main() {
             mineProgress = 0.0f;
         }
 
-        // Placement: min placeDelay seconds between placed blocks while holding RMB.
+        // Placement: the first block of a fresh click places instantly; while
+        // holding RMB, further blocks need placeDelay seconds each.
         static float placeTimer = 0.0f;
+        static bool prevRightDown = false;
         bool rightDown = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS;
         if (rightDown) {
-            placeTimer += dt;
             float placeMax = g_settings.placeDelay < 0.01f ? 0.01f : g_settings.placeDelay;
+            if (!prevRightDown) placeTimer = placeMax; // fresh click: instant place
+            placeTimer += dt;
             if (hit && hface >= 0 && hface < 6 && placeTimer >= placeMax) {
                 static const int FD[6][3] = {
                     {1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}};
@@ -362,6 +365,7 @@ int main() {
         } else {
             placeTimer = 0.0f;
         }
+        prevRightDown = rightDown;
 
         // -------- Render --------
         static const Vec3 FOG = Vec3(0.62f, 0.78f, 0.92f);
@@ -387,22 +391,9 @@ int main() {
         fs.showBox = hit;
         if (hit) fs.boxPos = Vec3((float)hx, (float)hy, (float)hz);
 
-        // 8-stage crack overlay on the block currently being mined. It samples
-        // the crack textures (textures/crackN.png) which use an alpha channel, so
-        // only the cracks show over the block. The stage advances with the dig
-        // progress and reaches the 8th frame just before the block breaks.
-        // Only faces that are not blocked by an adjacent solid block are drawn,
-        // otherwise the buried crack faces flicker against the neighbor blocks.
-        int crackFaces = 0;
-        if (mineable) {
-            static const int CF[6][3] = {
-                {1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}};
-            for (int f = 0; f < 6; f++) {
-                int nx = hx + CF[f][0], ny = hy + CF[f][1], nz = hz + CF[f][2];
-                if (!blockDef(world.getBlock(nx, ny, nz)).solid)
-                    crackFaces |= (1 << f);
-            }
-        }
+        // 8-stage crack overlay on the block being mined. Simplest possible form:
+        // a single crack sticker (textures/crackN.png) that always faces the
+        // camera, so there are no seams or flicker from a multi-face overlay.
         float crackBreakT = g_settings.breakTime > 0.05f ? g_settings.breakTime : 0.05f;
         if (mineable) {
             int hd = blockDef(world.getBlock(hx, hy, hz)).hardness;
@@ -411,7 +402,6 @@ int main() {
         }
         fs.showCrack = mineProgress > 0.0f && mineable;
         fs.crackPos = Vec3((float)hx, (float)hy, (float)hz);
-        fs.crackFaces = crackFaces;
         int crackStage = (int)(mineProgress / crackBreakT * 8.0f);
         fs.crackStage = crackStage > 7 ? 7 : (crackStage < 0 ? 0 : crackStage);
 

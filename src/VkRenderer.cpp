@@ -938,31 +938,17 @@ bool VkRenderer::createUiBuffers() {
     if (!vkutil::createHostBuffer(m_ctx, sizeof(CROSS), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
                                   m_crossBuf, m_crossMem, CROSS)) return false;
 
-    // Unit cube (6 faces as triangle lists) with 0..1 UVs for the crack overlay.
-    static const float CUBE_V[6][4][3] = {
-        {{1, 0, 1}, {1, 0, 0}, {1, 1, 0}, {1, 1, 1}},
-        {{0, 0, 0}, {0, 0, 1}, {0, 1, 1}, {0, 1, 0}},
-        {{0, 1, 1}, {1, 1, 1}, {1, 1, 0}, {0, 1, 0}},
-        {{1, 0, 0}, {1, 0, 1}, {0, 0, 1}, {0, 0, 0}},
-        {{0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}},
-        {{1, 0, 0}, {0, 0, 0}, {0, 1, 0}, {1, 1, 0}},
+    // Single billboard quad for the crack sticker (2 triangles, pos + normal + uv).
+    static const float QUAD[6][8] = {
+        {-0.5f, -0.5f, 0,  0, 0, 1,  0, 0},
+        { 0.5f, -0.5f, 0,  0, 0, 1,  1, 0},
+        { 0.5f,  0.5f, 0,  0, 0, 1,  1, 1},
+        {-0.5f, -0.5f, 0,  0, 0, 1,  0, 0},
+        { 0.5f,  0.5f, 0,  0, 0, 1,  1, 1},
+        {-0.5f,  0.5f, 0,  0, 0, 1,  0, 1},
     };
-    static const float CUBE_N[6][3] = {
-        {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
-    static const float CUV[4][2] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
-    static const int CT[6] = {0, 1, 2, 0, 2, 3};
-    std::vector<float> crack(6 * 6 * 8);
-    int k = 0;
-    for (int f = 0; f < 6; f++)
-        for (int c = 0; c < 6; c++) {
-            const float* v = CUBE_V[f][CT[c]];
-            crack[k++] = v[0]; crack[k++] = v[1]; crack[k++] = v[2];
-            crack[k++] = CUBE_N[f][0]; crack[k++] = CUBE_N[f][1]; crack[k++] = CUBE_N[f][2];
-            crack[k++] = CUV[CT[c]][0]; crack[k++] = CUV[CT[c]][1];
-        }
-    if (!vkutil::createHostBuffer(m_ctx, crack.size() * sizeof(float),
-                                  VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                                  m_crackBuf, m_crackMem, crack.data())) return false;
+    if (!vkutil::createHostBuffer(m_ctx, sizeof(QUAD), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                                  m_crackBuf, m_crackMem, QUAD)) return false;
     return true;
 }
 
@@ -1238,10 +1224,9 @@ void VkRenderer::recordFrame(Frame& f, World& world, const FrameState& fs) {
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_crack);
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_crackLayout,
                                 0, 1, &f.crackSet, 0, nullptr);
-        // Slightly hull the cube so the cracks sit just in front of the faces.
-        Mat4 grow = identity();
-        grow.m[0] = grow.m[5] = grow.m[10] = 1.001f;
-        Mat4 model = mat4Mul(translation(fs.crackPos), grow);
+        // Centre the crack sticker at the block centre; the vertex shader
+        // billboards it to always face the camera.
+        Mat4 model = translation(fs.crackPos + Vec3(0.5f, 0.5f, 0.5f));
         float u0, v0, u1, v1;
         TextureAtlas::tileUV(TILE_CRACK0 + fs.crackStage, u0, v0, u1, v1);
         struct CrackPC {
@@ -1255,12 +1240,7 @@ void VkRenderer::recordFrame(Frame& f, World& world, const FrameState& fs) {
                            0, sizeof(pc), &pc);
         VkDeviceSize offset = 0;
         vkCmdBindVertexBuffers(cmd, 0, 1, &m_crackBuf, &offset);
-        // Draw one quad per exposed face (each face is 6 vertices).
-        uint32_t mask = (uint32_t)fs.crackFaces;
-        for (int f = 0; f < 6; f++) {
-            if (mask & (1u << f))
-                vkCmdDraw(cmd, 6, 1, f * 6, 0);
-        }
+        vkCmdDraw(cmd, 6, 1, 0, 0); // one crack sticker quad
     }
     if (fs.showBox) {
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_box);
