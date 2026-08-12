@@ -42,7 +42,7 @@ if(NOT GLSLC)
     message(FATAL_ERROR "glslc not found (install shaderc)")
 endif()
 
-set(SHADER_NAMES world.vert world.frag box.vert box.frag cross.vert cross.frag)
+set(SHADER_NAMES world.vert world.frag box.vert box.frag cross.vert cross.frag crack.vert crack.frag)
 set(SHADER_OUTPUTS)
 foreach(sh ${SHADER_NAMES})
     get_filename_component(stage ${sh} EXT)

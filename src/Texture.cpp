@@ -53,7 +53,8 @@ const char* TextureAtlas::tileName(int tile) {
     static const char* const names[NUM_TILES] = {
         "grass_top", "grass_side", "dirt", "stone", "sand", "water",
         "log_side", "log_top", "leaves", "snow", "planks", "bedrock",
-        "grass_snow_side",
+        "grass_snow_side", "crack0", "crack1", "crack2", "crack3",
+        "crack4", "crack5", "crack6", "crack7",
     };
     return (tile >= 0 && tile < NUM_TILES) ? names[tile] : "";
 }
@@ -73,6 +74,14 @@ void TextureAtlas::paintTileContent(int tile, unsigned char* out) {
         case 10: paintPlanks(out, TILE); break;
         case 11: paintBedrock(out, TILE); break;
         case 12: paintGrassSnowSide(out, TILE); break;
+        case 13: paintCrack(out, TILE, 0); break;
+        case 14: paintCrack(out, TILE, 1); break;
+        case 15: paintCrack(out, TILE, 2); break;
+        case 16: paintCrack(out, TILE, 3); break;
+        case 17: paintCrack(out, TILE, 4); break;
+        case 18: paintCrack(out, TILE, 5); break;
+        case 19: paintCrack(out, TILE, 6); break;
+        case 20: paintCrack(out, TILE, 7); break;
         default: std::memset(out, 0, (size_t)TILE * TILE * 4); break;
     }
 }
@@ -203,4 +212,31 @@ void TextureAtlas::paintGrassSnowSide(unsigned char* p, int s) {
     for (int y = 0; y < 7; y++)
         for (int x = 0; x < TILE; x++)
             px(p, s, x, y, 240, 246, 250);
+}
+
+
+void TextureAtlas::paintCrack(unsigned char* p, int s, int stage) {
+    // Progressive 8-stage crack overlay (0..7): increasingly dense black
+    // zig-zag cracks on a transparent background.
+    const int total = 8 + (stage + 1) * 9; // ~17..80 black pixels
+    unsigned rng = 0x51F01525u ^ (uint32_t)(stage * 0x9E3779B9u);
+    auto rnd = [&]() {
+        rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5;
+        return (float)(rng & 0xFFFF) / 65535.0f;
+    };
+    int painted = 0;
+    while (painted < total) {
+        int x = (int)(rnd() * s);
+        int y = (int)(rnd() * s);
+        int len = 5 + (int)(rnd() * 10);
+        for (int i = 0; i < len && painted < total; i++) {
+            if (x < 0 || x >= s || y < 0 || y >= s) break;
+            if (p[(y * s + x) * 4 + 3] == 0) {
+                px(p, s, x, y, 0, 0, 0, 255);
+                painted++;
+            }
+            x += (rnd() < 0.5f) ? 1 : -1;
+            y += (rnd() < 0.5f) ? 1 : -1;
+        }
+    }
 }

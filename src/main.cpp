@@ -312,12 +312,29 @@ int main() {
         int hx = 0, hy = 0, hz = 0, hface = -1;
         bool hit = raycastBlock(world, g_cam.pos, fwd, hx, hy, hz, hface);
 
-        if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
-            if (hit && world.getBlock(hx, hy, hz) != BEDROCK)
+        // Mining: hold LMB to destroy a block after breakTime seconds. Progress
+        // is kept while the button is held (even if the aim moves) and only
+        // resets when released or aimed at a non-mineable block.
+        static float mineProgress = 0.0f;
+        bool leftDown = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+        bool mineable = hit && world.getBlock(hx, hy, hz) != BEDROCK;
+        float breakT = g_settings.breakTime > 0.05f ? g_settings.breakTime : 0.05f;
+        if (leftDown && mineable) {
+            mineProgress += dt;
+            if (mineProgress >= breakT) {
                 world.setBlock(hx, hy, hz, AIR);
+                mineProgress = 0.0f;
+            }
+        } else {
+            mineProgress = 0.0f;
         }
-        if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS) {
-            if (hit && hface >= 0 && hface < 6) {
+
+        // Placement: 1/64 s cooldown between placed blocks while holding RMB.
+        static float placeTimer = 0.0f;
+        bool rightDown = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS;
+        if (rightDown) {
+            placeTimer += dt;
+            if (hit && hface >= 0 && hface < 6 && placeTimer >= 1.0f / 64.0f) {
                 static const int FD[6][3] = {
                     {1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}};
                 int px = hx + FD[hface][0];
@@ -328,9 +345,13 @@ int main() {
                     (px + 1) > g_player.pos.x - hw && px < g_player.pos.x + hw &&
                     (py + 1) > g_player.pos.y && py < g_player.pos.y + Player::HEIGHT &&
                     (pz + 1) > g_player.pos.z - hw && pz < g_player.pos.z + hw;
-                if (!overlaps && world.getBlock(px, py, pz) == AIR)
+                if (!overlaps && world.getBlock(px, py, pz) == AIR) {
                     world.setBlock(px, py, pz, g_placeBlock);
+                    placeTimer = 0.0f;
+                }
             }
+        } else {
+            placeTimer = 0.0f;
         }
 
         // -------- Render --------
@@ -356,6 +377,12 @@ int main() {
         fs.fogFar = edge * 0.92f;
         fs.showBox = hit;
         if (hit) fs.boxPos = Vec3((float)hx, (float)hy, (float)hz);
+
+        // 8-stage crack overlay on the block currently being mined.
+        fs.showCrack = mineProgress > 0.0f && mineable;
+        fs.crackPos = Vec3((float)hx, (float)hy, (float)hz);
+        int crackStage = (int)(mineProgress / breakT * 8.0f);
+        fs.crackStage = crackStage > 7 ? 7 : (crackStage < 0 ? 0 : crackStage);
 
         if (g_takeShot) {
             g_takeShot = false;

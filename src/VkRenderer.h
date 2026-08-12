@@ -19,6 +19,11 @@ struct FrameState {
     float fogFar = 110.0f;
     bool showBox = false;
     Vec3 boxPos;
+
+    // Block being mined: 8-stage crack overlay shown while LMB is held.
+    bool showCrack = false;
+    Vec3 crackPos;
+    int crackStage = 0;
 };
 
 class VkRenderer {
@@ -83,6 +88,10 @@ private:
     VkDeviceMemory m_boxMem = VK_NULL_HANDLE;
     VkBuffer m_crossBuf = VK_NULL_HANDLE;
     VkDeviceMemory m_crossMem = VK_NULL_HANDLE;
+    VkPipelineLayout m_crackLayout = VK_NULL_HANDLE;
+    VkPipeline m_crack = VK_NULL_HANDLE;
+    VkBuffer m_crackBuf = VK_NULL_HANDLE;
+    VkDeviceMemory m_crackMem = VK_NULL_HANDLE;
     VkBuffer m_shotBuf = VK_NULL_HANDLE;
     VkDeviceMemory m_shotMem = VK_NULL_HANDLE;
     VkDeviceSize m_shotSize = 0;

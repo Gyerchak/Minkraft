@@ -9,11 +9,11 @@
 // bleeding between tiles. Mipmaps are generated per tile (padding included).
 class TextureAtlas {
 public:
-    static const int NUM_TILES = 13; // used tile slots 0..12
+    static const int NUM_TILES = 21; // used tile slots 0..20
     static const int TILE = 16;      // content pixels per tile
     static const int PAD = 4;        // padding texels per side (>= mip filter radius)
     static const int PADDED = TILE + 2 * PAD; // 24
-    static const int GRID = 4;       // tiles per side
+    static const int GRID = 5;       // tiles per side
     static const int SIZE = GRID * PADDED;    // 96
     static const int MAX_LEVEL = 2;  // atlas sizes: 96, 48, 24
 
@@ -67,4 +67,5 @@ private:
     static void paintPlanks(unsigned char* p, int s);
     static void paintBedrock(unsigned char* p, int s);
     static void paintGrassSnowSide(unsigned char* p, int s);
+    static void paintCrack(unsigned char* p, int s, int stage);
 };

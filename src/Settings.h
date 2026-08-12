@@ -17,6 +17,7 @@ struct Settings {
 
     // --- Gameplay ---
     float reach = 6.0f;       // block breaking/placing distance
+    float breakTime = 2.0f;   // seconds to destroy a block while holding LMB
 
     // --- Quality ---
     int maxAnisotropy = 8;    // texture filtering quality

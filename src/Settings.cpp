@@ -38,6 +38,7 @@ void settingsApply(Settings& s, const std::string& line) {
     else if (key == "fov")              s.fovDegrees = parseFloat(val);
     else if (key == "maxFps")           s.maxFps = parseInt(val);
     else if (key == "reach")            s.reach = parseFloat(val);
+    else if (key == "breakTime")        s.breakTime = parseFloat(val);
     else if (key == "maxAnisotropy")    s.maxAnisotropy = parseInt(val);
     else if (key == "meshBudget")       s.meshBudget = parseInt(val);
 }

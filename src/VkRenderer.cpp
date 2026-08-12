@@ -466,7 +466,9 @@ bool VkRenderer::createPipelines() {
     VkShaderModule boxFS = loadShaderModule(m_ctx.device, shaderPath("box.frag"));
     VkShaderModule crossVS = loadShaderModule(m_ctx.device, shaderPath("cross.vert"));
     VkShaderModule crossFS = loadShaderModule(m_ctx.device, shaderPath("cross.frag"));
-    if (!worldVS || !worldFS || !boxVS || !boxFS || !crossVS || !crossFS) return false;
+    VkShaderModule crackVS = loadShaderModule(m_ctx.device, shaderPath("crack.vert"));
+    VkShaderModule crackFS = loadShaderModule(m_ctx.device, shaderPath("crack.frag"));
+    if (!worldVS || !worldFS || !boxVS || !boxFS || !crossVS || !crossFS || !crackVS || !crackFS) return false;
 
     VkPipelineShaderStageCreateInfo stages[2] = {
         stageInfo(VK_SHADER_STAGE_VERTEX_BIT, worldVS),
@@ -595,6 +597,45 @@ bool VkRenderer::createPipelines() {
     if (!makeUiPipeline(m_box, m_boxLayout, boxVS, boxFS, true)) return false;
     if (!makeUiPipeline(m_cross, m_crossLayout, crossVS, crossFS, false)) return false;
 
+    // Crack overlay: world vertex format, UI subpass, soft alpha blend so the
+    // black crack lines darken the block face beneath them.
+    {
+        VkPipelineShaderStageCreateInfo crackStages[2] = {
+            stageInfo(VK_SHADER_STAGE_VERTEX_BIT, crackVS),
+            stageInfo(VK_SHADER_STAGE_FRAGMENT_BIT, crackFS),
+        };
+        VkPipelineDepthStencilStateCreateInfo dsC = ds;
+        dsC.depthWriteEnable = VK_FALSE;
+        VkPipelineColorBlendAttachmentState cbaC = cba;
+        cbaC.blendEnable = VK_TRUE;
+        cbaC.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        cbaC.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        cbaC.colorBlendOp = VK_BLEND_OP_ADD;
+        cbaC.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        cbaC.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+        cbaC.alphaBlendOp = VK_BLEND_OP_ADD;
+        VkPipelineColorBlendStateCreateInfo cbC = cb;
+        cbC.pAttachments = &cbaC;
+        VkGraphicsPipelineCreateInfo gi{VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO};
+        gi.stageCount = 2;
+        gi.pStages = crackStages;
+        gi.pVertexInputState = &worldVi;
+        gi.pInputAssemblyState = &ia;
+        gi.pViewportState = &vs;
+        gi.pRasterizationState = &rs;
+        gi.pMultisampleState = &ms;
+        gi.pDepthStencilState = &dsC;
+        gi.pColorBlendState = &cbC;
+        gi.pDynamicState = &dci;
+        gi.layout = m_crackLayout;
+        gi.renderPass = m_renderPass;
+        gi.subpass = 2;
+        if (vkCreateGraphicsPipelines(m_ctx.device, VK_NULL_HANDLE, 1, &gi, nullptr, &m_crack) != VK_SUCCESS)
+            return false;
+    }
+
+    vkDestroyShaderModule(m_ctx.device, crackFS, nullptr);
+    vkDestroyShaderModule(m_ctx.device, crackVS, nullptr);
     vkDestroyShaderModule(m_ctx.device, crossFS, nullptr);
     vkDestroyShaderModule(m_ctx.device, crossVS, nullptr);
     vkDestroyShaderModule(m_ctx.device, boxFS, nullptr);
@@ -790,6 +831,18 @@ bool VkRenderer::createDescriptors() {
     cpl.pPushConstantRanges = &crossPC;
     if (vkCreatePipelineLayout(m_ctx.device, &cpl, nullptr, &m_crossLayout) != VK_SUCCESS) return false;
 
+    // Crack overlay layout: world descriptor set (UBO + atlas) + mat4/vec4.
+    VkPipelineLayoutCreateInfo crl{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+    crl.setLayoutCount = 1;
+    crl.pSetLayouts = &m_worldSetLayout;
+    VkPushConstantRange crackPC{};
+    crackPC.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    crackPC.offset = 0;
+    crackPC.size = 80; // mat4 + vec4
+    crl.pushConstantRangeCount = 1;
+    crl.pPushConstantRanges = &crackPC;
+    if (vkCreatePipelineLayout(m_ctx.device, &crl, nullptr, &m_crackLayout) != VK_SUCCESS) return false;
+
     for (auto& f : m_frames) {
         if (!vkutil::createHostBuffer(m_ctx, sizeof(UboData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                                       f.ubo, f.uboMem)) return false;
@@ -847,6 +900,32 @@ bool VkRenderer::createUiBuffers() {
                                   m_boxBuf, m_boxMem, BOX)) return false;
     if (!vkutil::createHostBuffer(m_ctx, sizeof(CROSS), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
                                   m_crossBuf, m_crossMem, CROSS)) return false;
+
+    // Unit cube (6 faces as triangle lists) with 0..1 UVs for the crack overlay.
+    static const float CUBE_V[6][4][3] = {
+        {{1, 0, 1}, {1, 0, 0}, {1, 1, 0}, {1, 1, 1}},
+        {{0, 0, 0}, {0, 0, 1}, {0, 1, 1}, {0, 1, 0}},
+        {{0, 1, 1}, {1, 1, 1}, {1, 1, 0}, {0, 1, 0}},
+        {{1, 0, 0}, {1, 0, 1}, {0, 0, 1}, {0, 0, 0}},
+        {{0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}},
+        {{1, 0, 0}, {0, 0, 0}, {0, 1, 0}, {1, 1, 0}},
+    };
+    static const float CUBE_N[6][3] = {
+        {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+    static const float CUV[4][2] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
+    static const int CT[6] = {0, 1, 2, 0, 2, 3};
+    std::vector<float> crack(6 * 6 * 8);
+    int k = 0;
+    for (int f = 0; f < 6; f++)
+        for (int c = 0; c < 6; c++) {
+            const float* v = CUBE_V[f][CT[c]];
+            crack[k++] = v[0]; crack[k++] = v[1]; crack[k++] = v[2];
+            crack[k++] = CUBE_N[f][0]; crack[k++] = CUBE_N[f][1]; crack[k++] = CUBE_N[f][2];
+            crack[k++] = CUV[CT[c]][0]; crack[k++] = CUV[CT[c]][1];
+        }
+    if (!vkutil::createHostBuffer(m_ctx, crack.size() * sizeof(float),
+                                  VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                                  m_crackBuf, m_crackMem, crack.data())) return false;
     return true;
 }
 
@@ -910,11 +989,13 @@ void VkRenderer::destroyPipelines() {
     if (m_worldWater) vkDestroyPipeline(m_ctx.device, m_worldWater, nullptr);
     if (m_box) vkDestroyPipeline(m_ctx.device, m_box, nullptr);
     if (m_cross) vkDestroyPipeline(m_ctx.device, m_cross, nullptr);
+    if (m_crack) vkDestroyPipeline(m_ctx.device, m_crack, nullptr);
     if (m_worldLayout) vkDestroyPipelineLayout(m_ctx.device, m_worldLayout, nullptr);
     if (m_boxLayout) vkDestroyPipelineLayout(m_ctx.device, m_boxLayout, nullptr);
     if (m_crossLayout) vkDestroyPipelineLayout(m_ctx.device, m_crossLayout, nullptr);
-    m_worldSolid = m_worldWater = m_box = m_cross = VK_NULL_HANDLE;
-    m_worldLayout = m_boxLayout = m_crossLayout = VK_NULL_HANDLE;
+    if (m_crackLayout) vkDestroyPipelineLayout(m_ctx.device, m_crackLayout, nullptr);
+    m_worldSolid = m_worldWater = m_box = m_cross = m_crack = VK_NULL_HANDLE;
+    m_worldLayout = m_boxLayout = m_crossLayout = m_crackLayout = VK_NULL_HANDLE;
 }
 
 void VkRenderer::shutdown() {
@@ -938,6 +1019,8 @@ void VkRenderer::shutdown() {
     if (m_boxMem) vkFreeMemory(m_ctx.device, m_boxMem, nullptr);
     if (m_crossBuf) vkDestroyBuffer(m_ctx.device, m_crossBuf, nullptr);
     if (m_crossMem) vkFreeMemory(m_ctx.device, m_crossMem, nullptr);
+    if (m_crackBuf) vkDestroyBuffer(m_ctx.device, m_crackBuf, nullptr);
+    if (m_crackMem) vkFreeMemory(m_ctx.device, m_crackMem, nullptr);
     if (m_shotBuf) vkDestroyBuffer(m_ctx.device, m_shotBuf, nullptr);
     if (m_shotMem) vkFreeMemory(m_ctx.device, m_shotMem, nullptr);
 
@@ -1112,7 +1195,30 @@ void VkRenderer::recordFrame(Frame& f, World& world, const FrameState& fs) {
     }
     vkCmdNextSubpass(cmd, VK_SUBPASS_CONTENTS_INLINE);
 
-    // ---- Subpass 2: UI (selection box + crosshair) ----
+    // ---- Subpass 2: UI (crack overlay + selection box + crosshair) ----
+    if (fs.showCrack && fs.crackStage >= 0 && fs.crackStage < 8) {
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_crack);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_crackLayout,
+                                0, 1, &f.worldSet, 0, nullptr);
+        // Slightly hull the cube so the cracks sit just in front of the faces.
+        Mat4 grow = identity();
+        grow.m[0] = grow.m[5] = grow.m[10] = 1.002f;
+        Mat4 model = mat4Mul(translation(fs.crackPos), grow);
+        float u0, v0, u1, v1;
+        TextureAtlas::tileUV(TILE_CRACK0 + fs.crackStage, u0, v0, u1, v1);
+        struct CrackPC {
+            Mat4 model;
+            float uvRect[4];
+        } pc;
+        pc.model = model;
+        pc.uvRect[0] = u0; pc.uvRect[1] = v0; pc.uvRect[2] = u1; pc.uvRect[3] = v1;
+        vkCmdPushConstants(cmd, m_crackLayout,
+                           VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                           0, sizeof(pc), &pc);
+        VkDeviceSize offset = 0;
+        vkCmdBindVertexBuffers(cmd, 0, 1, &m_crackBuf, &offset);
+        vkCmdDraw(cmd, 36, 1, 0, 0);
+    }
     if (fs.showBox) {
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_box);
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_boxLayout,

@@ -42,6 +42,14 @@ enum Tile {
     TILE_PLANKS = 10,
     TILE_BEDROCK = 11,
     TILE_GRASS_SNOW_SIDE = 12,
+    TILE_CRACK0 = 13,
+    TILE_CRACK1 = 14,
+    TILE_CRACK2 = 15,
+    TILE_CRACK3 = 16,
+    TILE_CRACK4 = 17,
+    TILE_CRACK5 = 18,
+    TILE_CRACK6 = 19,
+    TILE_CRACK7 = 20,
 };
 
 struct BlockDef {
