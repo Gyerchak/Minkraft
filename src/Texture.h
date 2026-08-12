@@ -14,8 +14,8 @@ public:
     static const int PAD = 4;        // padding texels per side (>= mip filter radius)
     static const int PADDED = TILE + 2 * PAD; // 24
     static const int GRID = 5;       // tiles per side
-    static const int SIZE = GRID * PADDED;    // 96
-    static const int MAX_LEVEL = 2;  // atlas sizes: 96, 48, 24
+    static const int SIZE = GRID * PADDED;    // 120
+    static const int MAX_LEVEL = 3;  // atlas sizes: 120, 60, 30, 15
 
     struct Level {
         int w = 0;

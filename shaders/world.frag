@@ -19,6 +19,9 @@ void main() {
     float dist = length(vWorldPos - ubo.uCamPos.xyz);
     float fog = clamp((dist - ubo.uFogParams.x) / (ubo.uFogParams.y - ubo.uFogParams.x), 0.0, 1.0);
     color = mix(color, ubo.uFogColor.xyz, fog);
-    outColor = vec4(color, tex.a);
+    // Fade the alpha to solid as fog takes over: translucent water must not let
+    // the world behind it keep showing through at distance (that ghosted
+    // through-water edges and caused the shifting alpha-flicker).
+    outColor = vec4(color, mix(tex.a, 1.0, fog));
 }
 
