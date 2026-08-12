@@ -387,9 +387,8 @@ int main() {
         }
         fs.camPos = g_cam.pos;
         fs.fogColor = g_player.inWater ? WATER_FOG : FOG;
-        // Fog ends at the render distance so the world edge fades cleanly into
-        // the sky colour. Mid- and far-ground stay crisp and only the last
-        // stretch gets an atmospheric haze, like Minecraft.
+        // Fog ends just inside the render distance so the outermost ring is
+        // exactly the sky colour, letting us skip drawing it entirely.
         float edge = (float)g_settings.renderDistance * Chunk::CX;
         if (g_player.inWater) {
             // Underwater, visibility is short: anything more than a few blocks
@@ -397,9 +396,13 @@ int main() {
             fs.fogNear = edge * 0.02f;
             fs.fogFar = edge * 0.07f;
         } else {
-            fs.fogNear = edge * 0.50f;
-            fs.fogFar = edge * 1.00f;
+            fs.fogNear = edge * 0.45f;
+            fs.fogFar = edge * 0.88f;
         }
+        // Chunks beyond this are 100% fog (same colour as the sky), so they are
+        // skipped at draw time: a large saving at long render distances and
+        // underwater, with no visible difference.
+        fs.drawDist = fs.fogFar + Chunk::CX * 2.0f;
         fs.showBox = hit;
         if (hit) fs.boxPos = Vec3((float)hx, (float)hy, (float)hz);
 

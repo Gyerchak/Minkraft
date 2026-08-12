@@ -1206,6 +1206,13 @@ void VkRenderer::recordFrame(Frame& f, World& world, const FrameState& fs) {
         fr.extract(fs.viewProj);
         VkDeviceSize offset = 0;
         world.forEachChunk([&](const Chunk& c) {
+            // Skip chunks that are entirely beyond the fog: they render as pure
+            // sky colour anyway. Relying on 2D distance is conservative (2D <= 3D).
+            if (fs.drawDist > 0.0f) {
+                float ccx = (float)(c.cx * Chunk::CX + Chunk::CX / 2) - fs.camPos.x;
+                float ccz = (float)(c.cz * Chunk::CZ + Chunk::CZ / 2) - fs.camPos.z;
+                if (ccx * ccx + ccz * ccz > fs.drawDist * fs.drawDist) return;
+            }
             if (!fr.visible((float)(c.cx * Chunk::CX), 0.0f, (float)(c.cz * Chunk::CZ),
                             (float)(c.cx * Chunk::CX + Chunk::CX), (float)Chunk::CY,
                             (float)(c.cz * Chunk::CZ + Chunk::CZ)))
@@ -1228,6 +1235,13 @@ void VkRenderer::recordFrame(Frame& f, World& world, const FrameState& fs) {
         fr.extract(fs.viewProj);
         VkDeviceSize offset = 0;
         world.forEachChunk([&](const Chunk& c) {
+            // Skip chunks that are entirely beyond the fog: they render as pure
+            // sky colour anyway. Relying on 2D distance is conservative (2D <= 3D).
+            if (fs.drawDist > 0.0f) {
+                float ccx = (float)(c.cx * Chunk::CX + Chunk::CX / 2) - fs.camPos.x;
+                float ccz = (float)(c.cz * Chunk::CZ + Chunk::CZ / 2) - fs.camPos.z;
+                if (ccx * ccx + ccz * ccz > fs.drawDist * fs.drawDist) return;
+            }
             if (!fr.visible((float)(c.cx * Chunk::CX), 0.0f, (float)(c.cz * Chunk::CZ),
                             (float)(c.cx * Chunk::CX + Chunk::CX), (float)Chunk::CY,
                             (float)(c.cz * Chunk::CZ + Chunk::CZ)))

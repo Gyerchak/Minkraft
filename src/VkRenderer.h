@@ -25,6 +25,7 @@ struct FrameState {
     Vec3 crackPos;
     int crackStage = 0;
     int crackFaces = 0; // bitmask of exposed faces to draw on the crack cube
+    float drawDist = -1.0f; // skip chunks fully beyond this distance (100% fog)
 };
 
 class VkRenderer {
