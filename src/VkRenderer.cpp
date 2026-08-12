@@ -758,6 +758,21 @@ bool VkRenderer::createAtlas(const TextureAtlas& atlas) {
     si.minLod = 0.0f;
     si.maxLod = (float)(levels.size() - 1);
     if (vkCreateSampler(m_ctx.device, &si, nullptr, &m_atlasSampler) != VK_SUCCESS) return false;
+
+    // Crack overlay sampler: NEAREST filtering so the crack texels stay crisp
+    // and match the pixel-art look of the block textures.
+    VkSamplerCreateInfo cs{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+    cs.magFilter = VK_FILTER_NEAREST;
+    cs.minFilter = VK_FILTER_NEAREST;
+    cs.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    cs.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    cs.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    cs.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    cs.mipLodBias = 0.0f;
+    cs.anisotropyEnable = VK_FALSE;
+    cs.minLod = 0.0f;
+    cs.maxLod = (float)(levels.size() - 1);
+    if (vkCreateSampler(m_ctx.device, &cs, nullptr, &m_crackSampler) != VK_SUCCESS) return false;
     return true;
 }
 
@@ -795,11 +810,11 @@ bool VkRenderer::createDescriptors() {
 
     VkDescriptorPoolSize poolSizes[2] = {};
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSizes[0].descriptorCount = (uint32_t)m_frames.size() * 2;
+    poolSizes[0].descriptorCount = (uint32_t)m_frames.size() * 3;
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSizes[1].descriptorCount = (uint32_t)m_frames.size();
+    poolSizes[1].descriptorCount = (uint32_t)m_frames.size() * 2;
     VkDescriptorPoolCreateInfo pci{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
-    pci.maxSets = (uint32_t)m_frames.size() * 2;
+    pci.maxSets = (uint32_t)m_frames.size() * 3;
     pci.poolSizeCount = 2;
     pci.pPoolSizes = poolSizes;
     if (vkCreateDescriptorPool(m_ctx.device, &pci, nullptr, &m_pool) != VK_SUCCESS) return false;
@@ -857,6 +872,9 @@ bool VkRenderer::createDescriptors() {
         ai.pSetLayouts = &m_boxSetLayout;
         if (vkAllocateDescriptorSets(m_ctx.device, &ai, &f.boxSet) != VK_SUCCESS) return false;
 
+        ai.pSetLayouts = &m_worldSetLayout;
+        if (vkAllocateDescriptorSets(m_ctx.device, &ai, &f.crackSet) != VK_SUCCESS) return false;
+
         VkDescriptorBufferInfo binfo{f.ubo, 0, sizeof(UboData)};
         VkDescriptorImageInfo iinfo{m_atlasSampler, m_atlasView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
         VkWriteDescriptorSet writes[2] = {};
@@ -882,6 +900,23 @@ bool VkRenderer::createDescriptors() {
         w.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         w.pBufferInfo = &b2;
         vkUpdateDescriptorSets(m_ctx.device, 1, &w, 0, nullptr);
+
+        VkDescriptorBufferInfo cb0{f.ubo, 0, sizeof(UboData)};
+        VkDescriptorImageInfo ci0{m_crackSampler, m_atlasView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+        VkWriteDescriptorSet cw[2] = {};
+        cw[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        cw[0].dstSet = f.crackSet;
+        cw[0].dstBinding = 0;
+        cw[0].descriptorCount = 1;
+        cw[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        cw[0].pBufferInfo = &cb0;
+        cw[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        cw[1].dstSet = f.crackSet;
+        cw[1].dstBinding = 1;
+        cw[1].descriptorCount = 1;
+        cw[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        cw[1].pImageInfo = &ci0;
+        vkUpdateDescriptorSets(m_ctx.device, 2, cw, 0, nullptr);
     }
     return true;
 }
@@ -1009,6 +1044,7 @@ void VkRenderer::shutdown() {
     if (m_atlasImage) vkDestroyImage(m_ctx.device, m_atlasImage, nullptr);
     if (m_atlasMem) vkFreeMemory(m_ctx.device, m_atlasMem, nullptr);
     if (m_atlasSampler) vkDestroySampler(m_ctx.device, m_atlasSampler, nullptr);
+    if (m_crackSampler) vkDestroySampler(m_ctx.device, m_crackSampler, nullptr);
 
     if (m_worldSetLayout) vkDestroyDescriptorSetLayout(m_ctx.device, m_worldSetLayout, nullptr);
     if (m_boxSetLayout) vkDestroyDescriptorSetLayout(m_ctx.device, m_boxSetLayout, nullptr);
@@ -1199,10 +1235,10 @@ void VkRenderer::recordFrame(Frame& f, World& world, const FrameState& fs) {
     if (fs.showCrack && fs.crackStage >= 0 && fs.crackStage < 8) {
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_crack);
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_crackLayout,
-                                0, 1, &f.worldSet, 0, nullptr);
+                                0, 1, &f.crackSet, 0, nullptr);
         // Slightly hull the cube so the cracks sit just in front of the faces.
         Mat4 grow = identity();
-        grow.m[0] = grow.m[5] = grow.m[10] = 1.002f;
+        grow.m[0] = grow.m[5] = grow.m[10] = 1.001f;
         Mat4 model = mat4Mul(translation(fs.crackPos), grow);
         float u0, v0, u1, v1;
         TextureAtlas::tileUV(TILE_CRACK0 + fs.crackStage, u0, v0, u1, v1);
@@ -1217,7 +1253,12 @@ void VkRenderer::recordFrame(Frame& f, World& world, const FrameState& fs) {
                            0, sizeof(pc), &pc);
         VkDeviceSize offset = 0;
         vkCmdBindVertexBuffers(cmd, 0, 1, &m_crackBuf, &offset);
-        vkCmdDraw(cmd, 36, 1, 0, 0);
+        // Draw one quad per exposed face (each face is 6 vertices).
+        uint32_t mask = (uint32_t)fs.crackFaces;
+        for (int f = 0; f < 6; f++) {
+            if (mask & (1u << f))
+                vkCmdDraw(cmd, 6, 1, f * 6, 0);
+        }
     }
     if (fs.showBox) {
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_box);
