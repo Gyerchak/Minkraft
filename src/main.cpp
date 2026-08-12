@@ -312,14 +312,22 @@ int main() {
         int hx = 0, hy = 0, hz = 0, hface = -1;
         bool hit = raycastBlock(world, g_cam.pos, fwd, hx, hy, hz, hface);
 
-        // Mining: hold LMB to destroy a block after breakTime seconds. Progress
-        // is kept while the button is held (even if the aim moves) and only
-        // resets when released or aimed at a non-mineable block.
+        // Mining: hold LMB to chip a block away. Like Minecraft, progress resets
+        // when you release the button or switch to a different block. The time to
+        // destroy a block is its hardness times the base breakTime.
         static float mineProgress = 0.0f;
+        static int mineX = 0, mineY = 0, mineZ = 0;
         bool leftDown = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
         bool mineable = hit && world.getBlock(hx, hy, hz) != BEDROCK;
-        float breakT = g_settings.breakTime > 0.05f ? g_settings.breakTime : 0.05f;
         if (leftDown && mineable) {
+            if (hx != mineX || hy != mineY || hz != mineZ) {
+                mineX = hx; mineY = hy; mineZ = hz;
+                mineProgress = 0.0f;
+            }
+            int hd = blockDef(world.getBlock(hx, hy, hz)).hardness;
+            if (hd < 1) hd = 1;
+            float breakT = g_settings.breakTime * (float)hd;
+            if (breakT < 0.05f) breakT = 0.05f;
             mineProgress += dt;
             if (mineProgress >= breakT) {
                 world.setBlock(hx, hy, hz, AIR);
@@ -378,10 +386,19 @@ int main() {
         fs.showBox = hit;
         if (hit) fs.boxPos = Vec3((float)hx, (float)hy, (float)hz);
 
-        // 8-stage crack overlay on the block currently being mined.
+        // 8-stage crack overlay on the block currently being mined. It samples
+        // the crack textures (textures/crackN.png) which use an alpha channel, so
+        // only the cracks show over the block. The stage advances with the dig
+        // progress and reaches the 8th frame just before the block breaks.
+        float crackBreakT = g_settings.breakTime > 0.05f ? g_settings.breakTime : 0.05f;
+        if (mineable) {
+            int hd = blockDef(world.getBlock(hx, hy, hz)).hardness;
+            if (hd < 1) hd = 1;
+            crackBreakT *= (float)hd;
+        }
         fs.showCrack = mineProgress > 0.0f && mineable;
         fs.crackPos = Vec3((float)hx, (float)hy, (float)hz);
-        int crackStage = (int)(mineProgress / breakT * 8.0f);
+        int crackStage = (int)(mineProgress / crackBreakT * 8.0f);
         fs.crackStage = crackStage > 7 ? 7 : (crackStage < 0 ? 0 : crackStage);
 
         if (g_takeShot) {

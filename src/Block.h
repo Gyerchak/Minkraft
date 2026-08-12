@@ -57,21 +57,22 @@ struct BlockDef {
     bool transparent; // never causes adjacent solid faces to be hidden
     bool water;
     const char* name;
+    int hardness;     // destroy time multiplier (1 = breakTime, 2 = 2x, ...)
 };
 
 inline const BlockDef& blockDef(unsigned char id) {
     static const BlockDef defs[NUM_BLOCKS] = {
-        {false, true,  false, "Air"},
-        {true,  false, false, "Grass"},
-        {true,  false, false, "Dirt"},
-        {true,  false, false, "Stone"},
-        {true,  false, false, "Sand"},
-        {false, true,  true,  "Water"},
-        {true,  false, false, "Log"},
-        {false, true,  false, "Leaves"},
-        {true,  false, false, "Snow"},
-        {true,  false, false, "Planks"},
-        {true,  false, false, "Bedrock"},
+        {false, true,  false, "Air",     0},
+        {true,  false, false, "Grass",   1},
+        {true,  false, false, "Dirt",    1},
+        {true,  false, false, "Stone",   3},
+        {true,  false, false, "Sand",    1},
+        {false, true,  true,  "Water",   1},
+        {true,  false, false, "Log",     1},
+        {false, true,  false, "Leaves",  1},
+        {true,  false, false, "Snow",    1},
+        {true,  false, false, "Planks",  1},
+        {true,  false, false, "Bedrock", 9999},
     };
     return defs[id < NUM_BLOCKS ? id : 0];
 }
