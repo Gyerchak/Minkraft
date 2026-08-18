@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Minkraft
+GenericName=OpenCodeBox project terminal
+Comment=Open the Minkraft project terminal
+Exec=/run/media/hubertg/SONIC/OpenCodeBox/git-projects/Minkraft/box/scripts/Minkraft.sh launch
+TryExec=/run/media/hubertg/SONIC/OpenCodeBox/git-projects/Minkraft/box/scripts/Minkraft.sh
+Icon=utilities-terminal
+Terminal=false
+Categories=Development;
